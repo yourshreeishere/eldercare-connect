@@ -14,6 +14,7 @@ import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
 import BigButton from "../components/BigButton";
 import LogCard from "../components/LogCard";
+import useRealtimeRefresh from "../hooks/useRealtimeRefresh";
 import { COLORS, FONT, SPACING, RADIUS } from "../constants/theme";
 
 export default function CaregiverHome() {
@@ -24,6 +25,7 @@ export default function CaregiverHome() {
   const [refreshing, setRefreshing] = useState(false);
   const [newMedName, setNewMedName] = useState("");
   const [addingMed, setAddingMed] = useState(false);
+  const [clearingEmergency, setClearingEmergency] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!familyId) {
@@ -58,6 +60,16 @@ export default function CaregiverHome() {
     loadData();
   }, [loadData]);
 
+  useRealtimeRefresh({
+    channelName: `caregiver-${familyId}`,
+    enabled: Boolean(familyId),
+    subscriptions: [
+      { table: "medication_logs", filter: `family_id=eq.${familyId}` },
+      { table: "profiles", filter: `family_id=eq.${familyId}` },
+    ],
+    onChange: loadData,
+  });
+
   async function onRefresh() {
     setRefreshing(true);
     await loadData();
@@ -88,6 +100,23 @@ export default function CaregiverHome() {
     loadData();
   }
 
+  async function clearEmergency() {
+    setClearingEmergency(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_emergency: false })
+      .eq("family_id", familyId)
+      .eq("role", "elderly")
+      .eq("is_emergency", true);
+    setClearingEmergency(false);
+
+    if (error) {
+      Alert.alert("Could not clear alert", error.message);
+      return;
+    }
+    loadData();
+  }
+
   const hasEmergency = emergencyProfiles.length > 0;
 
   return (
@@ -101,8 +130,17 @@ export default function CaregiverHome() {
         {hasEmergency && (
           <View style={styles.emergencyBanner}>
             <Text style={styles.emergencyBannerText}>
-              🚨 Emergency alert active for {emergencyProfiles.length} family member(s).
+              Emergency alert active for {emergencyProfiles.length} family member(s).
             </Text>
+            <View style={styles.emergencyAction}>
+              <BigButton
+                label="Mark as handled"
+                variant="neutral"
+                loading={clearingEmergency}
+                onPress={clearEmergency}
+                height={56}
+              />
+            </View>
           </View>
         )}
 
@@ -167,6 +205,7 @@ const styles = StyleSheet.create({
   heading: { fontSize: FONT.title, fontWeight: "800", color: COLORS.text, marginBottom: SPACING.md },
   emergencyBanner: { backgroundColor: COLORS.dangerLight, borderRadius: RADIUS.md, padding: SPACING.md, marginBottom: SPACING.md, borderWidth: 2, borderColor: COLORS.danger },
   emergencyBannerText: { fontSize: FONT.label, color: COLORS.danger, fontWeight: "700" },
+  emergencyAction: { marginTop: SPACING.sm },
   codeCard: { backgroundColor: COLORS.surface, borderRadius: RADIUS.md, padding: SPACING.md, marginBottom: SPACING.md },
   codeLabel: { fontSize: FONT.small, color: COLORS.textMuted, fontWeight: "600" },
   codeValue: { fontSize: FONT.small, color: COLORS.primary, marginTop: 4, fontWeight: "700" },

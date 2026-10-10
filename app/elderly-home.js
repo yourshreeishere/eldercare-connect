@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
 import BigButton from "../components/BigButton";
+import useRealtimeRefresh from "../hooks/useRealtimeRefresh";
 import { COLORS, FONT, SPACING, RADIUS, TAP } from "../constants/theme";
 
 export default function ElderlyHome() {
@@ -20,6 +21,8 @@ export default function ElderlyHome() {
   const [refreshing, setRefreshing] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
   const [sosBusy, setSosBusy] = useState(false);
+
+  const profileId = profile ? profile.id : null;
 
   const loadMeds = useCallback(async () => {
     if (!familyId) {
@@ -46,6 +49,19 @@ export default function ElderlyHome() {
   useEffect(() => {
     loadMeds();
   }, [loadMeds]);
+
+  useRealtimeRefresh({
+    channelName: `elderly-${profileId}`,
+    enabled: Boolean(familyId && profileId),
+    subscriptions: [
+      { table: "medication_logs", filter: `family_id=eq.${familyId}` },
+      { table: "profiles", filter: `id=eq.${profileId}` },
+    ],
+    onChange: async () => {
+      await refreshProfile();
+      await loadMeds();
+    },
+  });
 
   async function onRefresh() {
     setRefreshing(true);
