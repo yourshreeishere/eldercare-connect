@@ -22,5 +22,8 @@
     "react-native-screens": "4.25.2",
     "react-native-url-polyfill": "^3.0.0"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "supabase": "^2.120.0"
+  }
 }
